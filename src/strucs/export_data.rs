@@ -5,6 +5,12 @@ pub struct ExportData {
     pub res: String,
 }
 
+pub struct BrandData {
+    pub model: String,
+    pub engines: Vec<EngineInfo>,
+    pub transmissions: Vec<TransmissionData>,
+}
+
 pub struct EngineInfo {
     pub name: String,
     pub cv: String,

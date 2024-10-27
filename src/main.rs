@@ -4,7 +4,7 @@ use serde_json::{to_string, to_string_pretty};
 use std::fs::{read_dir, write, File};
 use std::io::Read;
 use std::path::PathBuf;
-use strucs::export_data::{EngineInfo, ExportData, TransmissionData};
+use strucs::export_data::{BrandData, EngineInfo, ExportData, TransmissionData};
 use strucs::file_data::{FileData, FolderData};
 
 fn read_file(path: &PathBuf) -> Option<File> {
@@ -55,7 +55,7 @@ fn save_as_json(data: Vec<ExportData>, path: &str, pretty_file: bool) -> bool {
     }
 }
 
-fn list_files(path: &PathBuf) -> Option<(Vec<FileData>, usize)> {
+fn list_files(path: &PathBuf) -> Option<Vec<FileData>> {
     let entries = match read_dir(path) {
         Ok(entries) => entries,
         Err(_) => return None,
@@ -94,9 +94,7 @@ fn list_files(path: &PathBuf) -> Option<(Vec<FileData>, usize)> {
         return None;
     }
 
-    let total_files = files.len();
-
-    return Some((files, total_files));
+    return Some(files);
 }
 
 fn list_folders(path: &PathBuf) -> Option<Vec<FolderData>> {
@@ -168,6 +166,16 @@ fn get_engine_cv(name: &String) -> Option<String> {
     return None;
 }
 
+fn get_normal_value(name: &String) -> Option<String> {
+    let split: Vec<&str> = name.split(':').collect();
+
+    if split.len() > 1 {
+        return Some(split[1].trim().to_string());
+    }
+
+    return None;
+}
+
 fn read_engine_file(path: &PathBuf) -> Option<EngineInfo> {
     let file = match file_split_space(path) {
         Some(file) => file,
@@ -195,19 +203,17 @@ fn read_engine_file(path: &PathBuf) -> Option<EngineInfo> {
         }
 
         if line.contains("torque:") {
-            let torque_split: Vec<&str> = line.split(':').collect();
-
-            if torque_split.len() > 1 {
-                nm = torque_split[1].trim().to_string();
-            }
+            nm = match get_normal_value(&line) {
+                Some(nm) => nm,
+                None => continue,
+            };
         }
 
         if line.contains("rpm_limit:") {
-            let rpm_split: Vec<&str> = line.split(':').collect();
-
-            if rpm_split.len() > 1 {
-                rpm = rpm_split[1].trim().to_string();
-            }
+            rpm = match get_normal_value(&line) {
+                Some(rpm) => rpm,
+                None => continue,
+            };
         }
     }
 
@@ -221,7 +227,7 @@ fn read_engine_file(path: &PathBuf) -> Option<EngineInfo> {
 fn list_engine_data(path: &PathBuf) -> Option<Vec<EngineInfo>> {
     let path_engines = path.join("engine");
 
-    let (list_files_engines, total_files) = match list_files(&path_engines) {
+    let list_files_engines = match list_files(&path_engines) {
         Some(list_files) => list_files,
         None => return None,
     };
@@ -234,17 +240,20 @@ fn list_engine_data(path: &PathBuf) -> Option<Vec<EngineInfo>> {
             None => continue,
         };
 
-        println!("Engine: {}", engine_data.name);
         data.push(engine_data);
     }
 
-    return None;
+    if data.is_empty() {
+        return None;
+    }
+
+    return Some(data);
 }
 
 fn list_transmission_data(path: &PathBuf) -> Option<Vec<TransmissionData>> {
     let path_transmissions = path.join("transmission");
 
-    let (list_files_transmissions, total_files) = match list_files(&path_transmissions) {
+    let list_files_transmissions = match list_files(&path_transmissions) {
         Some(list_files) => list_files,
         None => return None,
     };
@@ -264,8 +273,20 @@ fn main() {
         None => return,
     };
 
+    let mut data_raw_trucks: Vec<BrandData> = Vec::new();
+
     for folder in list_folders_trucks {
-        list_engine_data(&folder.path);
+        let engines = match list_engine_data(&folder.path) {
+            Some(engines) => engines,
+            None => continue,
+        };
+
         list_transmission_data(&folder.path);
+
+        data_raw_trucks.push(BrandData {
+            model: folder.folder_name,
+            engines,
+            transmissions: Vec::new(),
+        });
     }
 }
