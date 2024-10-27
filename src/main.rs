@@ -1,10 +1,11 @@
 mod strucs;
 
 use serde_json::{to_string, to_string_pretty};
+use std::collections::{HashMap, HashSet};
 use std::fs::{read_dir, write, File};
 use std::io::Read;
 use std::path::PathBuf;
-use strucs::export_data::{BrandData, EngineInfo, ExportData, TransmissionData};
+use strucs::export_data::{BrandData, EngineInfo, TransmissionData};
 use strucs::file_data::{FileData, FolderData};
 
 fn read_file(path: &PathBuf) -> Option<File> {
@@ -38,8 +39,7 @@ fn file_split_space(path: &PathBuf) -> Option<Vec<String>> {
     return None;
 }
 
-#[allow(dead_code)]
-fn save_as_json(data: Vec<ExportData>, path: &str, pretty_file: bool) -> bool {
+fn save_as_json(data: HashMap<String, Vec<BrandData>>, path: &str, pretty_file: bool) -> bool {
     let json_data = match if pretty_file {
         to_string_pretty(&data)
     } else {
@@ -176,7 +176,11 @@ fn get_normal_value(name: &String) -> Option<String> {
     return None;
 }
 
-fn read_engine_file(path: &PathBuf) -> Option<EngineInfo> {
+fn read_engine_file(
+    path: &PathBuf,
+    folder_name: &String,
+    file_name: &String,
+) -> Option<EngineInfo> {
     let file = match file_split_space(path) {
         Some(file) => file,
         None => return None,
@@ -185,7 +189,6 @@ fn read_engine_file(path: &PathBuf) -> Option<EngineInfo> {
     let mut name: String = String::new();
     let mut cv: String = String::new();
     let mut nm: String = String::new();
-    let mut rpm: String = String::new();
 
     for line in file {
         if line.contains("name:") {
@@ -208,20 +211,15 @@ fn read_engine_file(path: &PathBuf) -> Option<EngineInfo> {
                 None => continue,
             };
         }
-
-        if line.contains("rpm_limit:") {
-            rpm = match get_normal_value(&line) {
-                Some(rpm) => rpm,
-                None => continue,
-            };
-        }
     }
 
-    if name.is_empty() || cv.is_empty() || nm.is_empty() || rpm.is_empty() {
+    if name.is_empty() || cv.is_empty() || nm.is_empty() {
         return None;
     }
 
-    return Some(EngineInfo { name, cv, nm, rpm });
+    let code = format!("/def/vehicle/truck/{}/engine/{}", folder_name, file_name);
+
+    return Some(EngineInfo { name, cv, nm, code });
 }
 
 fn get_transmission_ratio(file: Vec<String>, i_start: usize, i_end: usize) -> Option<String> {
@@ -237,7 +235,11 @@ fn get_transmission_ratio(file: Vec<String>, i_start: usize, i_end: usize) -> Op
     return Some(format!("{} - {}", ratio_1, ratio_2));
 }
 
-fn read_transmission_file(path: &PathBuf) -> Option<TransmissionData> {
+fn read_transmission_file(
+    path: &PathBuf,
+    folder_name: &String,
+    file_name: &String,
+) -> Option<TransmissionData> {
     let file = match file_split_space(path) {
         Some(file) => file,
         None => return None,
@@ -286,15 +288,21 @@ fn read_transmission_file(path: &PathBuf) -> Option<TransmissionData> {
         return None;
     }
 
+    let code = format!(
+        "/def/vehicle/truck/{}/transmission/{}",
+        folder_name, file_name
+    );
+
     return Some(TransmissionData {
         name,
         speeds: speeds.to_string(),
         retarder,
-        Ratio: ratio,
+        ratio,
+        code,
     });
 }
 
-fn list_engine_data(path: &PathBuf) -> Option<Vec<EngineInfo>> {
+fn list_engine_data(path: &PathBuf, folder_name: &String) -> Option<Vec<EngineInfo>> {
     let path_engines = path.join("engine");
 
     let list_files_engines = match list_files(&path_engines) {
@@ -305,7 +313,7 @@ fn list_engine_data(path: &PathBuf) -> Option<Vec<EngineInfo>> {
     let mut data: Vec<EngineInfo> = Vec::new();
 
     for files in list_files_engines {
-        match read_engine_file(&files.path) {
+        match read_engine_file(&files.path, &folder_name, &files.file_name) {
             Some(engine_data) => data.push(engine_data),
             None => continue,
         };
@@ -318,7 +326,7 @@ fn list_engine_data(path: &PathBuf) -> Option<Vec<EngineInfo>> {
     return Some(data);
 }
 
-fn list_transmission_data(path: &PathBuf) -> Option<Vec<TransmissionData>> {
+fn list_transmission_data(path: &PathBuf, folder_name: &String) -> Option<Vec<TransmissionData>> {
     let path_transmissions = path.join("transmission");
 
     let list_files_transmissions = match list_files(&path_transmissions) {
@@ -329,7 +337,7 @@ fn list_transmission_data(path: &PathBuf) -> Option<Vec<TransmissionData>> {
     let mut data: Vec<TransmissionData> = Vec::new();
 
     for files in list_files_transmissions {
-        match read_transmission_file(&files.path) {
+        match read_transmission_file(&files.path, &folder_name, &files.file_name) {
             Some(transmission_data) => data.push(transmission_data),
             None => continue,
         };
@@ -342,8 +350,30 @@ fn list_transmission_data(path: &PathBuf) -> Option<Vec<TransmissionData>> {
     return Some(data);
 }
 
+fn get_brands(data: &Vec<BrandData>) -> HashSet<String> {
+    let mut brands: HashSet<String> = HashSet::new();
+
+    for brand in data {
+        let split_name = brand.model.split(".").collect::<Vec<&str>>();
+        brands.insert(split_name[0].to_string());
+    }
+
+    return brands;
+}
+
+fn get_brand_models(data: &Vec<BrandData>) -> HashSet<String> {
+    let mut brands: HashSet<String> = HashSet::new();
+
+    for brand in data {
+        let split_name = brand.model.split(".").collect::<Vec<&str>>();
+        brands.insert(split_name[1].to_string());
+    }
+
+    return brands;
+}
+
 fn main() {
-    let path = PathBuf::from("C:/Users/coffe/Desktop/SCS Extrac/truck");
+    let path = PathBuf::from("path");
 
     let list_folders_trucks = match list_folders(&path) {
         Some(list_folders) => list_folders,
@@ -353,12 +383,12 @@ fn main() {
     let mut data_raw_trucks: Vec<BrandData> = Vec::new();
 
     for folder in list_folders_trucks {
-        let engines = match list_engine_data(&folder.path) {
+        let engines = match list_engine_data(&folder.path, &folder.folder_name) {
             Some(engines) => engines,
             None => continue,
         };
 
-        let transmissions = match list_transmission_data(&folder.path) {
+        let transmissions = match list_transmission_data(&folder.path, &folder.folder_name) {
             Some(transmission) => transmission,
             None => continue,
         };
@@ -369,4 +399,25 @@ fn main() {
             transmissions,
         });
     }
+
+    let brands = get_brands(&data_raw_trucks);
+
+    let mut data: HashMap<String, Vec<BrandData>> = HashMap::new();
+
+    for brand in brands {
+        let mut data_brand: Vec<BrandData> = Vec::new();
+
+        for brand_data in &data_raw_trucks {
+            let split_name = brand_data.model.split(".").collect::<Vec<&str>>();
+
+            if split_name[0] == brand {
+                data_brand.push(brand_data.clone());
+            }
+        }
+
+        data.insert(brand, data_brand);
+    }
+
+    let path_json = "path.json";
+    save_as_json(data, path_json, true);
 }
