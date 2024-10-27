@@ -1,7 +1,7 @@
 mod strucs;
 
 use serde_json::{to_string, to_string_pretty};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs::{read_dir, write, File};
 use std::io::Read;
 use std::path::PathBuf;
@@ -171,6 +171,26 @@ fn get_normal_value(name: &String) -> Option<String> {
 
     if split.len() > 1 {
         return Some(split[1].trim().to_string());
+    }
+
+    return None;
+}
+
+fn get_brand(data: &String) -> Option<String> {
+    let split_name = data.split(".").collect::<Vec<&str>>();
+
+    if split_name.len() > 1 {
+        return Some(split_name[0].to_string());
+    }
+
+    return None;
+}
+
+fn get_model(data: &String) -> Option<String> {
+    let split_name = data.split(".").collect::<Vec<&str>>();
+
+    if split_name.len() > 1 {
+        return Some(split_name[1].to_string());
     }
 
     return None;
@@ -350,28 +370,6 @@ fn list_transmission_data(path: &PathBuf, folder_name: &String) -> Option<Vec<Tr
     return Some(data);
 }
 
-fn get_brands(data: &Vec<BrandData>) -> HashSet<String> {
-    let mut brands: HashSet<String> = HashSet::new();
-
-    for brand in data {
-        let split_name = brand.model.split(".").collect::<Vec<&str>>();
-        brands.insert(split_name[0].to_string());
-    }
-
-    return brands;
-}
-
-fn get_brand_models(data: &Vec<BrandData>) -> HashSet<String> {
-    let mut brands: HashSet<String> = HashSet::new();
-
-    for brand in data {
-        let split_name = brand.model.split(".").collect::<Vec<&str>>();
-        brands.insert(split_name[1].to_string());
-    }
-
-    return brands;
-}
-
 fn main() {
     let path = PathBuf::from("path");
 
@@ -393,29 +391,30 @@ fn main() {
             None => continue,
         };
 
+        let brand = match get_brand(&folder.folder_name) {
+            Some(brand) => brand,
+            None => continue,
+        };
+
+        let model = match get_model(&folder.folder_name) {
+            Some(model) => model,
+            None => continue,
+        };
+
         data_raw_trucks.push(BrandData {
-            model: folder.folder_name,
+            brand,
+            model: model,
             engines,
             transmissions,
         });
     }
 
-    let brands = get_brands(&data_raw_trucks);
-
     let mut data: HashMap<String, Vec<BrandData>> = HashMap::new();
 
-    for brand in brands {
-        let mut data_brand: Vec<BrandData> = Vec::new();
-
-        for brand_data in &data_raw_trucks {
-            let split_name = brand_data.model.split(".").collect::<Vec<&str>>();
-
-            if split_name[0] == brand {
-                data_brand.push(brand_data.clone());
-            }
-        }
-
-        data.insert(brand, data_brand);
+    for truck_data in &data_raw_trucks {
+        data.entry(truck_data.brand.clone())
+            .or_insert(Vec::new())
+            .push(truck_data.clone());
     }
 
     let path_json = "path.json";

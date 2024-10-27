@@ -2,6 +2,7 @@ use serde::Serialize;
 
 #[derive(Serialize, Clone)]
 pub struct BrandData {
+    pub brand: String,
     pub model: String,
     pub engines: Vec<EngineInfo>,
     pub transmissions: Vec<TransmissionData>,
