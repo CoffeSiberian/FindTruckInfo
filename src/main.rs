@@ -140,7 +140,15 @@ fn get_object_name(name: &String) -> Option<String> {
     let split: Vec<&str> = name.split('"').collect();
 
     if split.len() > 1 {
-        return Some(split[1].to_string());
+        let split_name = split[1];
+
+        if split_name.contains("@@kw@@") {
+            let split_name_kw = split_name.replace("@@kw@@", "kw");
+
+            return Some(split_name_kw.to_string());
+        }
+
+        return Some(split_name.to_string());
     }
 
     return None;
