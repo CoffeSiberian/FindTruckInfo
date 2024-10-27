@@ -224,6 +224,76 @@ fn read_engine_file(path: &PathBuf) -> Option<EngineInfo> {
     return Some(EngineInfo { name, cv, nm, rpm });
 }
 
+fn get_transmission_ratio(file: Vec<String>, i_start: usize, i_end: usize) -> Option<String> {
+    let ratio_1 = match get_normal_value(&file[i_start]) {
+        Some(ratio) => ratio,
+        None => return None,
+    };
+    let ratio_2 = match get_normal_value(&file[i_end]) {
+        Some(ratio) => ratio,
+        None => return None,
+    };
+
+    return Some(format!("{} - {}", ratio_1, ratio_2));
+}
+
+fn read_transmission_file(path: &PathBuf) -> Option<TransmissionData> {
+    let file = match file_split_space(path) {
+        Some(file) => file,
+        None => return None,
+    };
+
+    let mut name: String = String::new();
+    let mut speeds: u8 = 0;
+    let mut retarder: bool = false;
+
+    let mut ratio_index_start: usize = 0;
+    let mut ratio_index_end: usize = 0;
+
+    for (i, line) in file.iter().enumerate() {
+        if line.contains("name:") {
+            name = match get_object_name(&line) {
+                Some(name) => name,
+                None => continue,
+            };
+        }
+
+        if line.contains("ratios_forward[") {
+            if ratio_index_start == 0 {
+                ratio_index_start = i
+            } else {
+                ratio_index_end = i;
+            }
+
+            speeds += 1;
+        }
+
+        if line.contains("retarder:") {
+            retarder = true;
+        }
+    }
+
+    if ratio_index_start == 0 || ratio_index_end == 0 {
+        return None;
+    }
+
+    let ratio = match get_transmission_ratio(file, ratio_index_start, ratio_index_end) {
+        Some(ratio) => ratio,
+        None => return None,
+    };
+
+    if name.is_empty() || speeds == 0 {
+        return None;
+    }
+
+    return Some(TransmissionData {
+        name,
+        speeds: speeds.to_string(),
+        retarder,
+        Ratio: ratio,
+    });
+}
+
 fn list_engine_data(path: &PathBuf) -> Option<Vec<EngineInfo>> {
     let path_engines = path.join("engine");
 
@@ -235,12 +305,10 @@ fn list_engine_data(path: &PathBuf) -> Option<Vec<EngineInfo>> {
     let mut data: Vec<EngineInfo> = Vec::new();
 
     for files in list_files_engines {
-        let engine_data = match read_engine_file(&files.path) {
-            Some(engine_data) => engine_data,
+        match read_engine_file(&files.path) {
+            Some(engine_data) => data.push(engine_data),
             None => continue,
         };
-
-        data.push(engine_data);
     }
 
     if data.is_empty() {
@@ -258,11 +326,20 @@ fn list_transmission_data(path: &PathBuf) -> Option<Vec<TransmissionData>> {
         None => return None,
     };
 
+    let mut data: Vec<TransmissionData> = Vec::new();
+
     for files in list_files_transmissions {
-        //println!("Reading file: {}", files.file_name);
+        match read_transmission_file(&files.path) {
+            Some(transmission_data) => data.push(transmission_data),
+            None => continue,
+        };
     }
 
-    return None;
+    if data.is_empty() {
+        return None;
+    }
+
+    return Some(data);
 }
 
 fn main() {
@@ -281,12 +358,15 @@ fn main() {
             None => continue,
         };
 
-        list_transmission_data(&folder.path);
+        let transmissions = match list_transmission_data(&folder.path) {
+            Some(transmission) => transmission,
+            None => continue,
+        };
 
         data_raw_trucks.push(BrandData {
             model: folder.folder_name,
             engines,
-            transmissions: Vec::new(),
+            transmissions,
         });
     }
 }
