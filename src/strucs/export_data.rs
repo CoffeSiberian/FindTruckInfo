@@ -6,14 +6,15 @@ pub struct ExportData {
 }
 
 pub struct EngineInfo {
-    name: String,
-    cv: String,
-    nm: String,
+    pub name: String,
+    pub cv: String,
+    pub nm: String,
+    pub rpm: String,
 }
 
 pub struct TransmissionData {
-    name: String,
-    speeds: String,
-    retarder: bool,
-    Ratio: String,
+    pub name: String,
+    pub speeds: String,
+    pub retarder: bool,
+    pub Ratio: String,
 }
