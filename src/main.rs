@@ -273,7 +273,7 @@ fn read_transmission_file(
     let mut ratio_index_end: usize = 0;
 
     for (i, line) in file.iter().enumerate() {
-        if line.contains("name:") {
+        if line.contains("name:") && name.is_empty() {
             name = match get_object_name(&line) {
                 Some(name) => name,
                 None => continue,
