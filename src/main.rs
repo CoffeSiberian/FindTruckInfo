@@ -1,7 +1,7 @@
 mod strucs;
 
 use serde_json::{to_string, to_string_pretty};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::{read_dir, write, File};
 use std::io::Read;
 use std::path::PathBuf;
@@ -39,7 +39,7 @@ fn file_split_space(path: &PathBuf) -> Option<Vec<String>> {
     return None;
 }
 
-fn save_as_json(data: HashMap<String, Vec<BrandData>>, path: &str, pretty_file: bool) -> bool {
+fn save_as_json(data: BTreeMap<String, Vec<BrandData>>, path: &str, pretty_file: bool) -> bool {
     let json_data = match if pretty_file {
         to_string_pretty(&data)
     } else {
@@ -343,6 +343,12 @@ fn list_engine_data(path: &PathBuf, folder_name: &String) -> Option<Vec<EngineIn
         return None;
     }
 
+    data.sort_by(|a, b| {
+        a.cv.parse::<i32>()
+            .unwrap()
+            .cmp(&b.cv.parse::<i32>().unwrap())
+    });
+
     return Some(data);
 }
 
@@ -366,6 +372,13 @@ fn list_transmission_data(path: &PathBuf, folder_name: &String) -> Option<Vec<Tr
     if data.is_empty() {
         return None;
     }
+
+    data.sort_by(|a, b| {
+        a.speeds
+            .parse::<i32>()
+            .unwrap()
+            .cmp(&b.speeds.parse::<i32>().unwrap())
+    });
 
     return Some(data);
 }
@@ -403,7 +416,7 @@ fn main() {
 
         data_raw_trucks.push(BrandData {
             brand,
-            model: model,
+            model,
             engines,
             transmissions,
         });
@@ -417,6 +430,14 @@ fn main() {
             .push(truck_data.clone());
     }
 
-    let path_json = "path.json";
-    save_as_json(data, path_json, true);
+    let mut keys: Vec<&String> = data.keys().collect();
+    keys.sort();
+
+    let mut data_sort: BTreeMap<String, Vec<BrandData>> = BTreeMap::new();
+    for key in keys {
+        data_sort.insert(key.to_string(), data[key].clone());
+    }
+
+    let path_json = "trucks_info.json";
+    save_as_json(data_sort, path_json, true);
 }
